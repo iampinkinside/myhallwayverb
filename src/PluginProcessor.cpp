@@ -2,9 +2,18 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
 
-// --- JUCE BOILERPLATE CODE ---
+// Those are default values for the plugin's parameters.
+// They are static because we want them to be availible only to this translation unit
 
-//==============================================================================
+static const float MIN_GAIN = -24.0f;
+static const float MAX_GAIN = 6.0f;
+static const float DEFAULT_GAIN = 0.0f;
+static const float DEFAULT_MIX = 50.0f;
+static const float DEFAULT_STEP_VALUE = 0.1f;
+static const float DEFAULT_SKEW_FACTOR = 1.0f;
+
+// -- MHVAudioProcessor methods --
+
 MHVAudioProcessor::MHVAudioProcessor()
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -15,13 +24,17 @@ MHVAudioProcessor::MHVAudioProcessor()
                      #endif
                        )
 {   
+    // Load the impulse response binary data...
+    // We do this in the constructor because we want to load the data only once.
+    // The IR resources are loaded onto heap and we want to avoid heap allocation during the audio processing
+    LoadIRBinaryData();
 }
 
 MHVAudioProcessor::~MHVAudioProcessor()
 {
+    DeleteIRBinaryData();
 }
 
-//==============================================================================
 const juce::String MHVAudioProcessor::getName() const
 {
     return JucePlugin_Name;
@@ -56,6 +69,7 @@ bool MHVAudioProcessor::isMidiEffect() const
 
 double MHVAudioProcessor::getTailLengthSeconds() const
 {
+    // TODO: Implement this method, return the length of the current IR maybe?
     return 0.0;
 }
 
@@ -86,7 +100,6 @@ void MHVAudioProcessor::changeProgramName (int index, const juce::String& newNam
     juce::ignoreUnused (index, newName);
 }
 
-//==============================================================================
 // ? Why this takes an int not an unsigned int ?
 void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock) 
 {
@@ -97,38 +110,18 @@ void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = 1;
     spec.sampleRate = sampleRate;
-    // Load the impulse response
-    m_LeftChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_ImpulseResponseData,
-                                                                          m_ImpulseResponseDataSize,
-                                                                          juce::dsp::Convolution::Stereo::no,
-                                                                          juce::dsp::Convolution::Trim::no,
-                                                                          0,
-                                                                          juce::dsp::Convolution::Normalise::yes);
-    m_RightChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_ImpulseResponseData,
-                                                                           m_ImpulseResponseDataSize,
-                                                                           juce::dsp::Convolution::Stereo::no,
-                                                                           juce::dsp::Convolution::Trim::no,
-                                                                           0,
-                                                                           juce::dsp::Convolution::Normalise::yes);
     // Prepare the mono chains and mixer
     m_LeftChain.prepare(spec);
     m_RightChain.prepare(spec);
     m_DryWetLeft.prepare(spec);
     m_DryWetRight.prepare(spec);
-    // Get the chain settings
-    auto chainSettings = ChainSettings::getSettings(apvts);
-    // Apply the input gain parameter
-    m_LeftChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
-    m_RightChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
-    // Apply the output gain parameter
-    m_LeftChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
-    m_RightChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
-    // Apply the dry/wet mix parameter
-    m_DryWetLeft.setWetMixProportion(chainSettings.dryWet);
-    m_DryWetRight.setWetMixProportion(chainSettings.dryWet);
-    // Set the mixing rule
+    // Set the mixing rule for the dry/wet mixer
     m_DryWetLeft.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
     m_DryWetRight.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
+    // Before we update the parameters, we need to set the current impulse response data
+    UpdateCurrentIR(m_IRDataArray[0]);
+    // Update the parameters
+    UpdateParameters();
 }
 
 void MHVAudioProcessor::releaseResources()
@@ -179,7 +172,7 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // Leaving this code here as a reminder of how to process the audio buffer...
+    // Leaving this code here as a reminder of how to process the audio buffer manually...
     //
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
@@ -194,6 +187,73 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     //     // ..do something to the data...
     // }
 
+    // Update the parameters
+    UpdateParameters();
+    // Process the buffer using the DSP chain
+    ProcessBufferUsingDSP(buffer);
+}
+
+bool MHVAudioProcessor::hasEditor() const
+{
+    return true; // (change this to false if you choose to not supply an editor)
+}
+
+juce::AudioProcessorEditor* MHVAudioProcessor::createEditor()
+{
+    // TODO: Create the editor
+    // return new MHVAudioProcessorEditor (*this);
+    // TODO: Remove the generic editor when the custom editor is ready
+    return new juce::GenericAudioProcessorEditor(*this);
+}
+
+void MHVAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+{
+    // You should use this method to store your parameters in the memory block.
+    // You could do that either as raw data, or use the XML or ValueTree classes
+    // as intermediaries to make it easy to save and load complex data.
+    juce::ignoreUnused (destData);
+}
+
+void MHVAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    // You should use this method to restore your parameters from this memory block,
+    // whose contents will have been created by the getStateInformation() call.
+    juce::ignoreUnused (data, sizeInBytes);
+}
+
+// This creates new instances of the plugin..
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new MHVAudioProcessor();
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::CreateParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("inputGain",
+                                                           "Input Gain",
+                                                           juce::NormalisableRange<float>(MIN_GAIN, MAX_GAIN,DEFAULT_STEP_VALUE, DEFAULT_SKEW_FACTOR),
+                                                           DEFAULT_GAIN));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("outputGain",
+                                                           "Output Gain",
+                                                           juce::NormalisableRange<float>(MIN_GAIN, MAX_GAIN, DEFAULT_STEP_VALUE, DEFAULT_SKEW_FACTOR),
+                                                           DEFAULT_GAIN));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("dryWetMix",
+                                                           "Dry/Wet",
+                                                           juce::NormalisableRange<float>(0.0f, 100.0f, DEFAULT_STEP_VALUE, DEFAULT_SKEW_FACTOR),
+                                                           DEFAULT_MIX));
+    layout.add(std::make_unique<juce::AudioParameterChoice>("impulseResponse",
+                                                            "Impulse Response",
+                                                            juce::StringArray({ "Near", "Far", "Wherever you are" }),
+                                                            0));                               
+    return layout;
+}
+
+void MHVAudioProcessor::UpdateParameters()
+{
     // Get the chain settings
     auto chainSettings = ChainSettings::getSettings(apvts);
     // Apply the input gain parameter
@@ -205,7 +265,15 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Apply the dry/wet mix parameter
     m_DryWetLeft.setWetMixProportion(chainSettings.dryWet);
     m_DryWetRight.setWetMixProportion(chainSettings.dryWet);
+    // Update the current impulse response if needed
+    if (m_CurrentIRData->index != (unsigned int)chainSettings.irIndex)
+    {
+        UpdateCurrentIR(m_IRDataArray[(unsigned int)chainSettings.irIndex]);
+    }
+}
 
+void MHVAudioProcessor::ProcessBufferUsingDSP(juce::AudioBuffer<float>& buffer)
+{
     // Create an AudioBlock to wrap the buffer
     juce::dsp::AudioBlock<float> block(buffer);
     // Create left and right blocks
@@ -225,92 +293,52 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     m_DryWetRight.mixWetSamples(rightBlock);
 }
 
-//==============================================================================
-bool MHVAudioProcessor::hasEditor() const
+IRData::IRData(const void* const iRdata, const size_t iRsize, const unsigned int iRindex)
+    : data(iRdata), size(iRsize), index(iRindex)
 {
-    return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* MHVAudioProcessor::createEditor()
+void MHVAudioProcessor::LoadIRBinaryData()
 {
-    // TODO: Create the editor
-    // return new MHVAudioProcessorEditor (*this);
-    // TODO: Remove the generic editor when the custom editor is ready
-    return new juce::GenericAudioProcessorEditor(*this);
+    m_IRDataArray[0] = new IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0);
+    m_IRDataArray[1] = new IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1);
+    m_IRDataArray[2] = new IRData(BinaryData::WhereverIR_wav, BinaryData::WhereverIR_wavSize, 2);
 }
 
-//==============================================================================
-void MHVAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void MHVAudioProcessor::DeleteIRBinaryData()
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    delete m_IRDataArray[0];
+    delete m_IRDataArray[1];
+    delete m_IRDataArray[2];
 }
 
-void MHVAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void MHVAudioProcessor::UpdateCurrentIR(IRData* newIRData)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+    // Update the current impulse response data pointer
+    m_CurrentIRData = newIRData;
+    // Update the impulse response data in the DSP chains
+    m_LeftChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_CurrentIRData->data,
+                                                                          m_CurrentIRData->size,
+                                                                          juce::dsp::Convolution::Stereo::no,
+                                                                          juce::dsp::Convolution::Trim::no,
+                                                                          0,
+                                                                          juce::dsp::Convolution::Normalise::yes);
+    m_RightChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_CurrentIRData->data,
+                                                                           m_CurrentIRData->size,
+                                                                           juce::dsp::Convolution::Stereo::no,
+                                                                           juce::dsp::Convolution::Trim::no,
+                                                                           0,
+                                                                           juce::dsp::Convolution::Normalise::yes);
 }
 
-//==============================================================================
-// This creates new instances of the plugin..
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new MHVAudioProcessor();
-}
+// -- ChainSettings methods --
 
-// --- PLUGIN-SPECIFIC CODE ---
-
-// - CONSTANTS -
-// Those are default values for the plugin's parameters.
-// They are static because we want them to be availible only to this translation unit
-static const float MIN_GAIN = -24.0f;
-static const float MAX_GAIN = 6.0f;
-static const float DEFAULT_GAIN = 0.0f;
-static const float DEFAULT_MIX = 50.0f;
-static const float DEFAULT_STEP_VALUE = 0.1f;
-static const float DEFAULT_SKEW_FACTOR = 1.0f;
-
-// - METHODS -
-juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::CreateParameterLayout()
-{
-    juce::AudioProcessorValueTreeState::ParameterLayout layout;
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>("inputGain",
-                                                           "Input Gain",
-                                                           juce::NormalisableRange<float>(MIN_GAIN,
-                                                                                          MAX_GAIN,
-                                                                                          DEFAULT_STEP_VALUE,
-                                                                                          DEFAULT_SKEW_FACTOR),
-                                                           DEFAULT_GAIN));
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>("outputGain",
-                                                           "Output Gain",
-                                                           juce::NormalisableRange<float>(MIN_GAIN,
-                                                                                          MAX_GAIN,
-                                                                                          DEFAULT_STEP_VALUE,
-                                                                                          DEFAULT_SKEW_FACTOR),
-                                                           DEFAULT_GAIN));
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>("dryWetMix",
-                                                           "Dry/Wet",
-                                                           juce::NormalisableRange<float>(0.0f,
-                                                                                          100.0f,
-                                                                                          DEFAULT_STEP_VALUE,
-                                                                                          DEFAULT_SKEW_FACTOR),
-                                                           DEFAULT_MIX));                                    
-    return layout;
-}
-
-// - MISCELLANEOUS -
 ChainSettings ChainSettings::getSettings(juce::AudioProcessorValueTreeState& apvts)
 {
     ChainSettings settings;
     settings.inputGain = apvts.getRawParameterValue("inputGain")->load();
     settings.outputGain = apvts.getRawParameterValue("outputGain")->load();
     settings.dryWet = apvts.getParameter("dryWetMix")->getValue();
+    settings.irIndex = apvts.getRawParameterValue("impulseResponse")->load();
     return settings;
 }

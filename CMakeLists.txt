@@ -73,8 +73,8 @@ juce_generate_juce_header(MyHallwayVerb)
 
 target_sources(MyHallwayVerb
     PRIVATE
-        PluginEditor.cpp
-        PluginProcessor.cpp)
+        src/PluginEditor.cpp
+        src/PluginProcessor.cpp)
 
 # `target_compile_definitions` adds some preprocessor definitions to our target. In a Projucer
 # project, these might be passed in the 'Preprocessor Definitions' field. JUCE modules also make use
@@ -97,7 +97,11 @@ target_compile_definitions(MyHallwayVerb
 # static library. These source files can be of any kind (wav data, images, fonts, icons etc.).
 # Conversion to binary-data will happen when your target is built.
 
-juce_add_binary_data(MyHallwayVerbData SOURCES SmallHall.aif)
+juce_add_binary_data(MyHallwayVerbData
+    SOURCES
+        IRs/NearIR.wav
+        IRs/FarIR.wav
+        IRs/WhereverIR.wav)
 
 # `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
 # we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
