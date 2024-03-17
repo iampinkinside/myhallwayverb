@@ -14,7 +14,7 @@ struct ChainSettings
     float dryWet;
     float irIndex;
 
-    static ChainSettings getSettings(juce::AudioProcessorValueTreeState& apvts);
+    void updateSettings(juce::AudioProcessorValueTreeState& apvts);
 };
 
 // This struct represents the impulse response data
@@ -46,12 +46,14 @@ private:
     MonoChain m_LeftChain, m_RightChain;
     // Dry/Wet mixers
     DryWetMixer m_DryWetLeft, m_DryWetRight;
+    // Chain settings
+    ChainSettings m_chainSettings;
     // The pointer to the current impulse response data
     const IRData* m_CurrentIRData;
     // The array with the impulse response data
-    const std::array<IRData, 3> m_IRDataArray = { IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0 ),
-                                                  IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1),
-                                                  IRData(BinaryData::WhereverIR_wav, BinaryData::WhereverIR_wavSize, 2) };
+    const std::array<const IRData, 3> m_IRDataArray = { IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0 ),
+                                                        IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1),
+                                                        IRData(BinaryData::WhereverIR_wav, BinaryData::WhereverIR_wavSize, 2) };
 // Methods
 public:
   // AudioProcessor methods overrides
@@ -94,10 +96,6 @@ public:
     // Creates the plugin's parameters layout
     static juce::AudioProcessorValueTreeState::ParameterLayout CreateParameterLayout();
 private:
-    // Loads the binary impulse response data - call this method in the constructor
-    void loadIRBinaryData();
-    // Delete binary impulse response data - call this method in the destructor
-    void deleteIRBinaryData();
     // Updates the current impulse response
     void updateCurrentIR(const IRData* newIRData);
     // Updates the plugin's parameters (update the DSP chain with the new parameters values)

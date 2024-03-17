@@ -250,20 +250,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::CreatePar
 void MHVAudioProcessor::updateParameters()
 {
     // Get the chain settings
-    auto chainSettings = ChainSettings::getSettings(apvts);
+    m_chainSettings.updateSettings(apvts);
     // Apply the input gain parameter
-    m_LeftChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
-    m_RightChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
+    m_LeftChain.get<ChainPositions::PosInputGain>().setGainDecibels(m_chainSettings.inputGain);
+    m_RightChain.get<ChainPositions::PosInputGain>().setGainDecibels(m_chainSettings.inputGain);
     // Apply the output gain parameter
-    m_LeftChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
-    m_RightChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
+    m_LeftChain.get<ChainPositions::PosOutputGain>().setGainDecibels(m_chainSettings.outputGain);
+    m_RightChain.get<ChainPositions::PosOutputGain>().setGainDecibels(m_chainSettings.outputGain);
     // Apply the dry/wet mix parameter
-    m_DryWetLeft.setWetMixProportion(chainSettings.dryWet);
-    m_DryWetRight.setWetMixProportion(chainSettings.dryWet);
+    m_DryWetLeft.setWetMixProportion(m_chainSettings.dryWet);
+    m_DryWetRight.setWetMixProportion(m_chainSettings.dryWet);
     // Update the current impulse response if needed
-    if (m_CurrentIRData->index != (unsigned int)chainSettings.irIndex)
+    if (m_CurrentIRData->index != (unsigned int)m_chainSettings.irIndex)
     {
-        updateCurrentIR(&m_IRDataArray[(unsigned int)chainSettings.irIndex]);
+        updateCurrentIR(&m_IRDataArray[(unsigned int)m_chainSettings.irIndex]);
     }
 }
 
@@ -293,7 +293,7 @@ IRData::IRData(const void* const iRdata, const size_t iRsize, const unsigned int
 {
 }
 
-void MHVAudioProcessor::updateCurrentIR(const IRData* newIRData)
+void MHVAudioProcessor::updateCurrentIR(const IRData* const newIRData)
 {
     // Update the current impulse response data pointer
     m_CurrentIRData = newIRData;
@@ -314,12 +314,10 @@ void MHVAudioProcessor::updateCurrentIR(const IRData* newIRData)
 
 // -- ChainSettings methods --
 
-ChainSettings ChainSettings::getSettings(juce::AudioProcessorValueTreeState& apvts)
+void ChainSettings::updateSettings(juce::AudioProcessorValueTreeState& apvts)
 {
-    ChainSettings settings;
-    settings.inputGain = apvts.getRawParameterValue("inputGain")->load();
-    settings.outputGain = apvts.getRawParameterValue("outputGain")->load();
-    settings.dryWet = apvts.getParameter("dryWetMix")->getValue();
-    settings.irIndex = apvts.getRawParameterValue("impulseResponse")->load();
-    return settings;
+    inputGain = apvts.getRawParameterValue("inputGain")->load();
+    outputGain = apvts.getRawParameterValue("outputGain")->load();
+    dryWet = apvts.getParameter("dryWetMix")->getValue();
+    irIndex = apvts.getRawParameterValue("impulseResponse")->load();
 }
