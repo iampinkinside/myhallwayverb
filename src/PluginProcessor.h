@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+#include <array>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include "BinaryData.h"
@@ -45,9 +47,11 @@ private:
     // Dry/Wet mixers
     DryWetMixer m_DryWetLeft, m_DryWetRight;
     // The pointer to the current impulse response data
-    IRData* m_CurrentIRData;
+    const IRData* m_CurrentIRData;
     // The array with the impulse response data
-    IRData* m_IRDataArray[3];
+    const std::array<IRData, 3> m_IRDataArray = { IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0 ),
+                                                  IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1),
+                                                  IRData(BinaryData::WhereverIR_wav, BinaryData::WhereverIR_wavSize, 2) };
 // Methods
 public:
   // AudioProcessor methods overrides
@@ -91,15 +95,15 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout CreateParameterLayout();
 private:
     // Loads the binary impulse response data - call this method in the constructor
-    void LoadIRBinaryData();
+    void loadIRBinaryData();
     // Delete binary impulse response data - call this method in the destructor
-    void DeleteIRBinaryData();
+    void deleteIRBinaryData();
     // Updates the current impulse response
-    void UpdateCurrentIR(IRData* newIRData);
+    void updateCurrentIR(const IRData* newIRData);
     // Updates the plugin's parameters (update the DSP chain with the new parameters values)
-    void UpdateParameters();
+    void updateParameters();
     // Internal method used to process the buffer using the plugin's DSP chain
-    void ProcessBufferUsingDSP(juce::AudioBuffer<float>& buffer);
+    void processBufferUsingDSP(juce::AudioBuffer<float>& buffer);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MHVAudioProcessor)
 };

@@ -24,15 +24,10 @@ MHVAudioProcessor::MHVAudioProcessor()
                      #endif
                        )
 {   
-    // Load the impulse response binary data...
-    // We do this in the constructor because we want to load the data only once.
-    // The IR resources are loaded onto heap and we want to avoid heap allocation during the audio processing
-    LoadIRBinaryData();
 }
 
 MHVAudioProcessor::~MHVAudioProcessor()
 {
-    DeleteIRBinaryData();
 }
 
 const juce::String MHVAudioProcessor::getName() const
@@ -119,9 +114,9 @@ void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     m_DryWetLeft.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
     m_DryWetRight.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
     // Before we update the parameters, we need to set the current impulse response data
-    UpdateCurrentIR(m_IRDataArray[0]);
+    updateCurrentIR(&m_IRDataArray[0]);
     // Update the parameters
-    UpdateParameters();
+    updateParameters();
 }
 
 void MHVAudioProcessor::releaseResources()
@@ -188,9 +183,9 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // }
 
     // Update the parameters
-    UpdateParameters();
+    updateParameters();
     // Process the buffer using the DSP chain
-    ProcessBufferUsingDSP(buffer);
+    processBufferUsingDSP(buffer);
 }
 
 bool MHVAudioProcessor::hasEditor() const
@@ -252,7 +247,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::CreatePar
     return layout;
 }
 
-void MHVAudioProcessor::UpdateParameters()
+void MHVAudioProcessor::updateParameters()
 {
     // Get the chain settings
     auto chainSettings = ChainSettings::getSettings(apvts);
@@ -268,11 +263,11 @@ void MHVAudioProcessor::UpdateParameters()
     // Update the current impulse response if needed
     if (m_CurrentIRData->index != (unsigned int)chainSettings.irIndex)
     {
-        UpdateCurrentIR(m_IRDataArray[(unsigned int)chainSettings.irIndex]);
+        updateCurrentIR(&m_IRDataArray[(unsigned int)chainSettings.irIndex]);
     }
 }
 
-void MHVAudioProcessor::ProcessBufferUsingDSP(juce::AudioBuffer<float>& buffer)
+void MHVAudioProcessor::processBufferUsingDSP(juce::AudioBuffer<float>& buffer)
 {
     // Create an AudioBlock to wrap the buffer
     juce::dsp::AudioBlock<float> block(buffer);
@@ -298,21 +293,7 @@ IRData::IRData(const void* const iRdata, const size_t iRsize, const unsigned int
 {
 }
 
-void MHVAudioProcessor::LoadIRBinaryData()
-{
-    m_IRDataArray[0] = new IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0);
-    m_IRDataArray[1] = new IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1);
-    m_IRDataArray[2] = new IRData(BinaryData::WhereverIR_wav, BinaryData::WhereverIR_wavSize, 2);
-}
-
-void MHVAudioProcessor::DeleteIRBinaryData()
-{
-    delete m_IRDataArray[0];
-    delete m_IRDataArray[1];
-    delete m_IRDataArray[2];
-}
-
-void MHVAudioProcessor::UpdateCurrentIR(IRData* newIRData)
+void MHVAudioProcessor::updateCurrentIR(const IRData* newIRData)
 {
     // Update the current impulse response data pointer
     m_CurrentIRData = newIRData;
