@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "BinaryData.h"
 
 // --- JUCE BOILERPLATE CODE ---
 
@@ -13,8 +14,7 @@ MHVAudioProcessor::MHVAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        )
-{
-    
+{   
 }
 
 MHVAudioProcessor::~MHVAudioProcessor()
@@ -87,11 +87,48 @@ void MHVAudioProcessor::changeProgramName (int index, const juce::String& newNam
 }
 
 //==============================================================================
-void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+// ? Why this takes an int not an unsigned int ?
+void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock) 
 {
     // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    // Create the process specification
+    juce::dsp::ProcessSpec spec;
+    // Configure the process specification
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = 1;
+    spec.sampleRate = sampleRate;
+    // Load the impulse response
+    m_LeftChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_ImpulseResponseData,
+                                                                          m_ImpulseResponseDataSize,
+                                                                          juce::dsp::Convolution::Stereo::no,
+                                                                          juce::dsp::Convolution::Trim::no,
+                                                                          0,
+                                                                          juce::dsp::Convolution::Normalise::yes);
+    m_RightChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_ImpulseResponseData,
+                                                                           m_ImpulseResponseDataSize,
+                                                                           juce::dsp::Convolution::Stereo::no,
+                                                                           juce::dsp::Convolution::Trim::no,
+                                                                           0,
+                                                                           juce::dsp::Convolution::Normalise::yes);
+    // Prepare the mono chains and mixer
+    m_LeftChain.prepare(spec);
+    m_RightChain.prepare(spec);
+    m_DryWetLeft.prepare(spec);
+    m_DryWetRight.prepare(spec);
+    // Get the chain settings
+    auto chainSettings = ChainSettings::getSettings(apvts);
+    // Apply the input gain parameter
+    m_LeftChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
+    m_RightChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
+    // Apply the output gain parameter
+    m_LeftChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
+    m_RightChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
+    // Apply the dry/wet mix parameter
+    m_DryWetLeft.setWetMixProportion(chainSettings.dryWet);
+    m_DryWetRight.setWetMixProportion(chainSettings.dryWet);
+    // Set the mixing rule
+    m_DryWetLeft.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
+    m_DryWetRight.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
 }
 
 void MHVAudioProcessor::releaseResources()
@@ -142,18 +179,50 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
+    // Leaving this code here as a reminder of how to process the audio buffer...
+    //
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
     // Make sure to reset the state if your inner loop is processing
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
-    }
+    // for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    // {
+    //     auto* channelData = buffer.getWritePointer (channel);
+    //     juce::ignoreUnused (channelData);
+    //     // ..do something to the data...
+    // }
+
+    // Get the chain settings
+    auto chainSettings = ChainSettings::getSettings(apvts);
+    // Apply the input gain parameter
+    m_LeftChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
+    m_RightChain.get<ChainPositions::PosInputGain>().setGainDecibels(chainSettings.inputGain);
+    // Apply the output gain parameter
+    m_LeftChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
+    m_RightChain.get<ChainPositions::PosOutputGain>().setGainDecibels(chainSettings.outputGain);
+    // Apply the dry/wet mix parameter
+    m_DryWetLeft.setWetMixProportion(chainSettings.dryWet);
+    m_DryWetRight.setWetMixProportion(chainSettings.dryWet);
+
+    // Create an AudioBlock to wrap the buffer
+    juce::dsp::AudioBlock<float> block(buffer);
+    // Create left and right blocks
+    auto leftBlock = block.getSingleChannelBlock(0);
+    auto rightBlock = block.getSingleChannelBlock(1);
+    // Push the dry samples into the chains
+    m_DryWetLeft.pushDrySamples(leftBlock);
+    m_DryWetRight.pushDrySamples(rightBlock);
+    // Create left and right context
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+    // Process the left and right chains
+    m_LeftChain.process(leftContext);
+    m_RightChain.process(rightContext);
+    // Mix the wet samples
+    m_DryWetLeft.mixWetSamples(leftBlock);
+    m_DryWetRight.mixWetSamples(rightBlock);
 }
 
 //==============================================================================
@@ -164,8 +233,10 @@ bool MHVAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* MHVAudioProcessor::createEditor()
 {
-    return new MHVAudioProcessorEditor (*this);
-    // return new juce::GenericAudioProcessorEditor(*this);
+    // TODO: Create the editor
+    // return new MHVAudioProcessorEditor (*this);
+    // TODO: Remove the generic editor when the custom editor is ready
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -232,4 +303,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::CreatePar
                                                                                           DEFAULT_SKEW_FACTOR),
                                                            DEFAULT_MIX));                                    
     return layout;
+}
+
+// - MISCELLANEOUS -
+ChainSettings ChainSettings::getSettings(juce::AudioProcessorValueTreeState& apvts)
+{
+    ChainSettings settings;
+    settings.inputGain = apvts.getRawParameterValue("inputGain")->load();
+    settings.outputGain = apvts.getRawParameterValue("outputGain")->load();
+    settings.dryWet = apvts.getParameter("dryWetMix")->getValue();
+    return settings;
 }

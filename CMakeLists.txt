@@ -54,14 +54,15 @@ juce_add_plugin(MyHallwayVerb
     FORMATS AU VST3 Standalone                  # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
     PRODUCT_NAME "MyHallwayVerb")               # The name of the final executable, which can differ from the target name
 
+# Let's just make sure we use C++17
+set_property(TARGET MyHallwayVerb PROPERTY CXX_STANDARD 17)
+set_property(TARGET MyHallwayVerb PROPERTY CXX_STANDARD_REQUIRED ON)
+
 # `juce_generate_juce_header` will create a JuceHeader.h for a given target, which will be generated
 # into your build tree. This should be included with `#include <JuceHeader.h>`. The include path for
 # this header will be automatically added to the target. The main function of the JuceHeader is to
 # include all your JUCE module headers; if you're happy to include module headers directly, you
 # probably don't need to call this.
-
-set_property(TARGET MyHallwayVerb PROPERTY CXX_STANDARD 17)
-set_property(TARGET MyHallwayVerb PROPERTY CXX_STANDARD_REQUIRED ON)
 
 juce_generate_juce_header(MyHallwayVerb)
 
@@ -96,7 +97,7 @@ target_compile_definitions(MyHallwayVerb
 # static library. These source files can be of any kind (wav data, images, fonts, icons etc.).
 # Conversion to binary-data will happen when your target is built.
 
-# juce_add_binary_data(AudioPluginData SOURCES ...)
+juce_add_binary_data(MyHallwayVerbData SOURCES SmallHall.aif)
 
 # `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
 # we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
@@ -106,8 +107,9 @@ target_compile_definitions(MyHallwayVerb
 
 target_link_libraries(MyHallwayVerb
     PRIVATE
-        # AudioPluginData           # If we'd created a binary data target, we'd link to it here
+        MyHallwayVerbData           # If we'd created a binary data target, we'd link to it here
         juce::juce_audio_utils
+        juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
