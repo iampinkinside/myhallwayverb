@@ -12,7 +12,7 @@ struct ChainSettings
     float inputGain;
     float outputGain;
     float dryWet;
-    float irIndex;
+    unsigned int irIndex;
 
     void updateSettings(juce::AudioProcessorValueTreeState& apvts);
 };
@@ -33,7 +33,7 @@ class MHVAudioProcessor final : public juce::AudioProcessor
 // Variables
 public:
     // Manages the plugin's parameters and synchronizing them with the GUI
-    juce::AudioProcessorValueTreeState apvts{*this, nullptr, "Parameters", CreateParameterLayout()};
+    juce::AudioProcessorValueTreeState apvts{*this, nullptr, "Parameters", createParameterLayout()};
 private:
      // Chain element's position defined as an enum for easier access
     enum ChainPositions { PosInputGain = 0, PosConvolution, PosOutputGain, };
@@ -43,7 +43,7 @@ private:
     using DryWetMixer = juce::dsp::DryWetMixer<float>;
     using MonoChain = juce::dsp::ProcessorChain<Gain, Convolution, Gain>;
     // Left and right channel's signal processing chains
-    MonoChain m_LeftChain, m_RightChain;
+    MonoChain m_LeftChain, m_RightChain;  
     // Dry/Wet mixers
     DryWetMixer m_DryWetLeft, m_DryWetRight;
     // Chain settings
@@ -94,12 +94,12 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
   // Custom methods    
     // Creates the plugin's parameters layout
-    static juce::AudioProcessorValueTreeState::ParameterLayout CreateParameterLayout();
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    // Updates the plugin's parameters (update the DSP chain with the new parameters values)
+    void updateParameters();
 private:
     // Updates the current impulse response
     void updateCurrentIR(const IRData* newIRData);
-    // Updates the plugin's parameters (update the DSP chain with the new parameters values)
-    void updateParameters();
     // Internal method used to process the buffer using the plugin's DSP chain
     void processBufferUsingDSP(juce::AudioBuffer<float>& buffer);
 

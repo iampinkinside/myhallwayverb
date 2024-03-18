@@ -99,9 +99,10 @@ target_compile_definitions(MyHallwayVerb
 
 juce_add_binary_data(MyHallwayVerbData
     SOURCES
-        IRs/NearIR.wav
-        IRs/FarIR.wav
-        IRs/WhereverIR.wav)
+        res/NearIR.wav
+        res/FarIR.wav
+        res/WhereverIR.wav
+        res/hallway.jpg)
 
 # `target_link_libraries` links libraries and JUCE modules to other libraries or executables. Here,
 # we're linking our executable target to the `juce::juce_audio_utils` module. Inter-module
