@@ -4,8 +4,6 @@
 #include "ParamDefinitions.h"
 
 
-// -- MHVAudioProcessor methods --
-
 MHVAudioProcessor::MHVAudioProcessor()
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -99,14 +97,25 @@ void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = 1;
     spec.sampleRate = sampleRate;
-    // Prepare the mono chains and mixer
-    m_LeftChain.prepare(spec);
-    m_RightChain.prepare(spec);
-    m_DryWetLeft.prepare(spec);
-    m_DryWetRight.prepare(spec);
-    // Set the mixing rule for the dry/wet mixer
-    m_DryWetLeft.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
-    m_DryWetRight.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
+    // Prepare the chains   
+    prepareChains(spec);
+}
+
+void MHVAudioProcessor::prepareChains(juce::dsp::ProcessSpec& spec)
+{
+    // Prepare the mono reverb chains
+    for (auto& chain : chainArray)
+    {
+        chain.prepare(spec);
+    }
+
+    // Prepare the mono mixer chains and et the mixing rule
+    for (auto& mixer : mixerArray)
+    {
+        mixer.prepare(spec);
+        mixer.setMixingRule(juce::dsp::DryWetMixer<float>::MixingRule::balanced);
+    }
+
     // Update the parameters
     updateParameters();
 }
@@ -174,8 +183,9 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     //     // ..do something to the data...
     // }
 
-    // Process the buffer using the DSP chain
-    processBufferUsingDSP(buffer);
+    // Process the buffer using the DSP chains, because we support only symmetric channels
+    // we can safaly assume that the number of input channels is equal to the number of output channels
+    processBufferUsingDSP(buffer, totalNumInputChannels);
 }
 
 bool MHVAudioProcessor::hasEditor() const
@@ -246,73 +256,76 @@ void MHVAudioProcessor::updateParameters()
 {
     // Get the chain settings
     m_chainSettings.updateSettings(apvts);
-    // Apply the input gain parameter
-    m_LeftChain.get<ChainPositions::PosInputGain>().setGainDecibels(m_chainSettings.inputGain);
-    m_RightChain.get<ChainPositions::PosInputGain>().setGainDecibels(m_chainSettings.inputGain);
-    // Apply the output gain parameter
-    m_LeftChain.get<ChainPositions::PosOutputGain>().setGainDecibels(m_chainSettings.outputGain);
-    m_RightChain.get<ChainPositions::PosOutputGain>().setGainDecibels(m_chainSettings.outputGain);
-    // Apply the dry/wet mix parameter
-    m_DryWetLeft.setWetMixProportion(m_chainSettings.dryWet);
-    m_DryWetRight.setWetMixProportion(m_chainSettings.dryWet);
-    // Update the current impulse response if needed
-    if(m_CurrentIRData->index != (unsigned int)m_chainSettings.irIndex)
-    {  
-        updateCurrentIR(&m_IRDataArray[(unsigned int)m_chainSettings.irIndex]);
+    // Apply the parameters to the chains
+    applyChainSettings();
+}
+
+void MHVAudioProcessor::applyChainSettings()
+{
+    for(unsigned int i = 0; i < chainArray.size(); i++)
+    {
+        // Apply the input gain parameter
+        chainArray[i].get<ChainPositions::PosInputGain>().setGainDecibels(m_chainSettings.inputGain);
+        // Apply the output gain parameter
+        chainArray[i].get<ChainPositions::PosOutputGain>().setGainDecibels(m_chainSettings.outputGain);
+        // Apply the dry/wet mix parameter
+        mixerArray[i].setWetMixProportion(m_chainSettings.dryWet);
+        // Update the current impulse response if needed
+        if(m_CurrentIRData->index != (unsigned int)m_chainSettings.irIndex)
+        {  
+            updateCurrentIR(&m_IRDataArray[(unsigned int)m_chainSettings.irIndex]);
+        }
     }
 }
 
-void MHVAudioProcessor::processBufferUsingDSP(juce::AudioBuffer<float>& buffer)
+void MHVAudioProcessor::processBufferUsingDSP(juce::AudioBuffer<float>& buffer, unsigned int numChannels)
 {
     // Create an AudioBlock to wrap the buffer
     juce::dsp::AudioBlock<float> block(buffer);
     // Create left and right blocks
-    auto leftBlock = block.getSingleChannelBlock(0);
-    auto rightBlock = block.getSingleChannelBlock(1);
-    // Push the dry samples into the chains
-    m_DryWetLeft.pushDrySamples(leftBlock);
-    m_DryWetRight.pushDrySamples(rightBlock);
-    // Create left and right context
-    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
-    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
-    // Process the left and right chains
-    m_LeftChain.process(leftContext);
-    m_RightChain.process(rightContext);
-    // Mix the wet samples
-    m_DryWetLeft.mixWetSamples(leftBlock);
-    m_DryWetRight.mixWetSamples(rightBlock);
+    for(unsigned int i = 0; i < numChannels; i++)
+    {
+        auto channelBlock = block.getSingleChannelBlock(i);
+        // Push the dry samples into the chains
+        mixerArray[i].pushDrySamples(channelBlock);
+        // Create left and right context
+        juce::dsp::ProcessContextReplacing<float> context(channelBlock);
+        // Process the left and right chains
+        chainArray[i].process(context);
+        // Mix the wet samples
+        mixerArray[i].mixWetSamples(channelBlock);
+    }
 }
 
 void MHVAudioProcessor::updateCurrentIR(const IRData* const newIRData)
 {
     // Update the current impulse response data pointer
     m_CurrentIRData = newIRData;
-    // Update the impulse response data in the DSP chains
-    m_LeftChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_CurrentIRData->data,
-                                                                          m_CurrentIRData->size,
-                                                                          juce::dsp::Convolution::Stereo::no,
-                                                                          juce::dsp::Convolution::Trim::no,
-                                                                          0,
-                                                                          juce::dsp::Convolution::Normalise::yes);
-    m_RightChain.get<ChainPositions::PosConvolution>().loadImpulseResponse(m_CurrentIRData->data,
-                                                                           m_CurrentIRData->size,
-                                                                           juce::dsp::Convolution::Stereo::no,
-                                                                           juce::dsp::Convolution::Trim::no,
-                                                                           0,
-                                                                           juce::dsp::Convolution::Normalise::yes);
+
+    for(auto& chain : chainArray)
+    {
+        chain.get<ChainPositions::PosConvolution>().loadImpulseResponse(newIRData->data,
+                                                                        newIRData->size,
+                                                                        juce::dsp::Convolution::Stereo::no,
+                                                                        juce::dsp::Convolution::Trim::no,
+                                                                        0,
+                                                                        juce::dsp::Convolution::Normalise::yes);
+    }
 }
+
 
 IRData::IRData(const void* const iRdata, const size_t iRsize, const unsigned int iRindex)
     : data(iRdata), size(iRsize), index(iRindex)
 {
 }
 
-// -- ChainSettings methods --
-
 void ChainSettings::updateSettings(juce::AudioProcessorValueTreeState& apvts)
 {
+    // Get the input and output gain as raw values as we'll be setting them using decibels
     inputGain = apvts.getRawParameterValue(paramID::inputGain)->load();
     outputGain = apvts.getRawParameterValue(paramID::outputGain)->load();
-    irIndex = (unsigned int)(apvts.getRawParameterValue(paramID::irIndex)->load());
+    // Get the dry/wet mix as a normalised value as this is what the mixer expects
     dryWet = apvts.getParameter(paramID::dryWet)->getValue();
+    // Get the impulse response raw value and cast it to an unsigned 
+    irIndex = (unsigned int)(apvts.getRawParameterValue(paramID::irIndex)->load());
 }

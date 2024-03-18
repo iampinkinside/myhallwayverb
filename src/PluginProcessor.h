@@ -6,6 +6,8 @@
 #include <juce_dsp/juce_dsp.h>
 #include "BinaryData.h"
 
+#define PLUGIN_CHANNEL_COUNT 2
+
 // This struct represents the plugin's settings
 struct ChainSettings
 {
@@ -43,9 +45,9 @@ private:
     using DryWetMixer = juce::dsp::DryWetMixer<float>;
     using MonoChain = juce::dsp::ProcessorChain<Gain, Convolution, Gain>;
     // Left and right channel's signal processing chains
-    MonoChain m_LeftChain, m_RightChain;  
+    std::array<MonoChain, PLUGIN_CHANNEL_COUNT> chainArray; 
     // Dry/Wet mixers
-    DryWetMixer m_DryWetLeft, m_DryWetRight;
+    std::array<DryWetMixer, PLUGIN_CHANNEL_COUNT> mixerArray;
     // Chain settings
     ChainSettings m_chainSettings;
     // The pointer to the current impulse response data
@@ -101,7 +103,13 @@ private:
     // Updates the current impulse response
     void updateCurrentIR(const IRData* newIRData);
     // Internal method used to process the buffer using the plugin's DSP chain
-    void processBufferUsingDSP(juce::AudioBuffer<float>& buffer);
+    void processBufferUsingDSP(juce::AudioBuffer<float>& buffer, unsigned int numChannels);
+    // Internal method used to apply the plugin's settings to the DSP chain
+    void applyChainSettings();
+    // Internal method used to update the impulse response for a single DSP chain
+    void updateChainIR(MonoChain& chain, const IRData* const newIRData);
+    // Internal method used to prepare the DSP chains
+    void prepareChains(juce::dsp::ProcessSpec& spec);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MHVAudioProcessor)
 };
