@@ -7,6 +7,16 @@
 #include "BinaryData.h"
 
 #define PLUGIN_CHANNEL_COUNT 2
+#define INVALID_IR_INDEX -1
+
+// This struct represents the plugin's data tree parameter pointers
+struct ParamPointers
+{
+    std::atomic<float>* inputGain;
+    std::atomic<float>* outputGain;
+    juce::RangedAudioParameter* dryWet;
+    std::atomic<float>* irIndex;
+};
 
 // This struct represents the plugin's settings
 struct ChainSettings
@@ -16,7 +26,7 @@ struct ChainSettings
     float dryWet;
     unsigned int irIndex;
 
-    void updateSettings(juce::AudioProcessorValueTreeState& apvts);
+    void updateSettings(ParamPointers& params);
 };
 
 // This struct represents the impulse response data
@@ -50,8 +60,10 @@ private:
     std::array<DryWetMixer, PLUGIN_CHANNEL_COUNT> mixerArray;
     // Chain settings
     ChainSettings m_chainSettings;
-    // The pointer to the current impulse response data
-    const IRData* m_CurrentIRData;
+    // The current impulse response index
+    int m_currentIRIndex = INVALID_IR_INDEX;
+    // The plugin's parameters pointers
+    ParamPointers m_paramPointers;
     // The array with the impulse response data
     const std::array<const IRData, 3> m_IRDataArray = { IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0 ),
                                                         IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1),

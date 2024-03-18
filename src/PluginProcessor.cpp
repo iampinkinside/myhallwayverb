@@ -13,9 +13,13 @@ MHVAudioProcessor::MHVAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        )
+
 {
-    // Before we update the parameters, we need to set the current impulse response data
-    updateCurrentIR(&m_IRDataArray[0]);   
+    // Store the parameter pointers
+    m_paramPointers.inputGain = apvts.getRawParameterValue(paramID::inputGain);
+    m_paramPointers.outputGain = apvts.getRawParameterValue(paramID::outputGain);
+    m_paramPointers.dryWet = apvts.getParameter(paramID::dryWet);
+    m_paramPointers.irIndex = apvts.getRawParameterValue(paramID::irIndex);
 }
 
 MHVAudioProcessor::~MHVAudioProcessor()
@@ -183,6 +187,9 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     //     // ..do something to the data...
     // }
 
+    // Update the parameters
+    updateParameters();
+
     // Process the buffer using the DSP chains, because we support only symmetric channels
     // we can safaly assume that the number of input channels is equal to the number of output channels
     processBufferUsingDSP(buffer, totalNumInputChannels);
@@ -255,7 +262,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::createPar
 void MHVAudioProcessor::updateParameters()
 {
     // Get the chain settings
-    m_chainSettings.updateSettings(apvts);
+    m_chainSettings.updateSettings(m_paramPointers);
     // Apply the parameters to the chains
     applyChainSettings();
 }
@@ -271,8 +278,8 @@ void MHVAudioProcessor::applyChainSettings()
         // Apply the dry/wet mix parameter
         mixerArray[i].setWetMixProportion(m_chainSettings.dryWet);
         // Update the current impulse response if needed
-        if(m_CurrentIRData->index != (unsigned int)m_chainSettings.irIndex)
-        {  
+        if (m_currentIRIndex == INVALID_IR_INDEX || m_currentIRIndex != m_chainSettings.irIndex)
+        {
             updateCurrentIR(&m_IRDataArray[(unsigned int)m_chainSettings.irIndex]);
         }
     }
@@ -299,9 +306,6 @@ void MHVAudioProcessor::processBufferUsingDSP(juce::AudioBuffer<float>& buffer, 
 
 void MHVAudioProcessor::updateCurrentIR(const IRData* const newIRData)
 {
-    // Update the current impulse response data pointer
-    m_CurrentIRData = newIRData;
-
     for(auto& chain : chainArray)
     {
         chain.get<ChainPositions::PosConvolution>().loadImpulseResponse(newIRData->data,
@@ -319,13 +323,13 @@ IRData::IRData(const void* const iRdata, const size_t iRsize, const unsigned int
 {
 }
 
-void ChainSettings::updateSettings(juce::AudioProcessorValueTreeState& apvts)
+void ChainSettings::updateSettings(ParamPointers& params)
 {
     // Get the input and output gain as raw values as we'll be setting them using decibels
-    inputGain = apvts.getRawParameterValue(paramID::inputGain)->load();
-    outputGain = apvts.getRawParameterValue(paramID::outputGain)->load();
+    inputGain = params.inputGain->load();
+    outputGain = params.outputGain->load();
     // Get the dry/wet mix as a normalised value as this is what the mixer expects
-    dryWet = apvts.getParameter(paramID::dryWet)->getValue();
+    dryWet = params.dryWet->getValue();
     // Get the impulse response raw value and cast it to an unsigned 
-    irIndex = (unsigned int)(apvts.getRawParameterValue(paramID::irIndex)->load());
+    irIndex = (unsigned int)(params.irIndex->load());
 }
