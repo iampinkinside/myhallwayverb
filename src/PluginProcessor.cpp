@@ -98,7 +98,7 @@ void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     // Create the process specification
     juce::dsp::ProcessSpec spec;
     // Configure the process specification
-    spec.maximumBlockSize = samplesPerBlock;
+    spec.maximumBlockSize = (unsigned int)samplesPerBlock;
     spec.numChannels = 1;
     spec.sampleRate = sampleRate;
     // Prepare the chains   
@@ -192,7 +192,7 @@ void MHVAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     // Process the buffer using the DSP chains, because we support only symmetric channels
     // we can safaly assume that the number of input channels is equal to the number of output channels
-    processBufferUsingDSP(buffer, totalNumInputChannels);
+    processBufferUsingDSP(buffer, (unsigned int)totalNumInputChannels);
 }
 
 bool MHVAudioProcessor::hasEditor() const
@@ -220,7 +220,7 @@ void MHVAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
-    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    auto tree = juce::ValueTree::readFromData(data, (size_t)sizeInBytes);
     if(tree.isValid())
     {
         apvts.replaceState(tree);
@@ -331,5 +331,5 @@ void ChainSettings::updateSettings(ParamPointers& params)
     // Get the dry/wet mix as a normalised value as this is what the mixer expects
     dryWet = params.dryWet->getValue();
     // Get the impulse response raw value and cast it to an unsigned 
-    irIndex = (unsigned int)(params.irIndex->load());
+    irIndex = (int)(params.irIndex->load());
 }

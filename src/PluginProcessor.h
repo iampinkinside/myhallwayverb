@@ -24,7 +24,7 @@ struct ChainSettings
     float inputGain;
     float outputGain;
     float dryWet;
-    unsigned int irIndex;
+    int irIndex;
 
     void updateSettings(ParamPointers& params);
 };
