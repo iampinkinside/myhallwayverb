@@ -232,23 +232,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::createPar
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>(paramID::inputGain,
+    layout.add(std::make_unique<juce::AudioParameterFloat>(MHV_PID_INPUT_GAIN,
                                                            "Input Gain",
-                                                           juce::NormalisableRange<float>(paramValue::minGain, paramValue::maxGain, paramValue::stepValue, paramValue::skewFactor),
-                                                           paramValue::defaultGain));
+                                                           juce::NormalisableRange<float>(MHV_PV_MIN_GAIN, MHV_PV_MAX_GAIN, MHV_PV_STEP_VALUE, MHV_PV_SKEW_FACTOR),
+                                                           MHV_PV_DEFAULT_GAIN));
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>(paramID::outputGain,
+    layout.add(std::make_unique<juce::AudioParameterFloat>(MHV_PID_OUTPUT_GAIN,
                                                            "Output Gain",
-                                                           juce::NormalisableRange<float>(paramValue::minGain, paramValue::maxGain, paramValue::stepValue, paramValue::skewFactor),
-                                                           paramValue::defaultGain));
+                                                           juce::NormalisableRange<float>(MHV_PV_MIN_GAIN, MHV_PV_MAX_GAIN, MHV_PV_STEP_VALUE, MHV_PV_SKEW_FACTOR),
+                                                           MHV_PV_DEFAULT_GAIN));
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>(paramID::dryWet,
+    layout.add(std::make_unique<juce::AudioParameterFloat>(MHV_PID_DRY_WET,
                                                            "Dry/Wet",
-                                                           juce::NormalisableRange<float>(0.f, 100.f, paramValue::stepValue, paramValue::skewFactor),
-                                                           paramValue::defaultMix));
-    layout.add(std::make_unique<juce::AudioParameterChoice>(paramID::irIndex,
+                                                           juce::NormalisableRange<float>(0.f, 100.f, MHV_PV_STEP_VALUE, MHV_PV_SKEW_FACTOR),
+                                                           MHV_PV_DEFAULT_MIX));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(MHV_PID_IR_INDEX,
                                                             "Impulse Response",
-                                                            juce::StringArray({paramValue::near, paramValue::far, paramValue::wherever}),
+                                                            juce::StringArray({MHV_NEAR_STR, MHV_FAR_STR, MHV_WHEREVER_STR}),
                                                             0));                               
     return layout;
 }
@@ -280,7 +280,7 @@ void MHVAudioProcessor::applyChainSettings()
         // Apply the dry/wet mix parameter
         mixerArray[i].setWetMixProportion(m_currentChainSettings.dryWet);
         // Update the current impulse response if needed
-        if (m_oldChainSettings.irIndex == paramValue::invalidIRIndex || m_currentChainSettings.irIndex != m_oldChainSettings.irIndex)
+        if (m_oldChainSettings.irIndex == MHV_INVALID_IR_INDEX || m_currentChainSettings.irIndex != m_oldChainSettings.irIndex)
         {
             updateCurrentIR(&m_IRDataArray[(unsigned int)m_currentChainSettings.irIndex]);
         }

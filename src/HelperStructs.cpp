@@ -25,9 +25,9 @@ bool ChainSettings::operator==(const ChainSettings& other)
 }
 
 ParamPointers::ParamPointers(juce::AudioProcessorValueTreeState& apvts)
-    : inputGain(apvts.getRawParameterValue(paramID::inputGain)),
-      outputGain(apvts.getRawParameterValue(paramID::outputGain)),
-      dryWet(apvts.getParameter(paramID::dryWet)),
-      irIndex(apvts.getRawParameterValue(paramID::irIndex))
+    : inputGain(apvts.getRawParameterValue(MHV_PID_INPUT_GAIN)),
+      outputGain(apvts.getRawParameterValue(MHV_PID_OUTPUT_GAIN)),
+      dryWet(apvts.getParameter(MHV_PID_DRY_WET)),
+      irIndex(apvts.getRawParameterValue(MHV_PID_IR_INDEX))
 {
 }

@@ -18,10 +18,10 @@ struct ParamPointers
 // This struct represents the plugin's settings
 struct ChainSettings
 {
-    float inputGain = paramValue::defaultGain;
-    float outputGain = paramValue::defaultGain;
-    float dryWet = paramValue::defaultMix;
-    int irIndex = paramValue::invalidIRIndex;
+    float inputGain = MHV_PV_DEFAULT_GAIN;
+    float outputGain = MHV_PV_DEFAULT_GAIN;
+    float dryWet = MHV_PV_DEFAULT_MIX;
+    int irIndex = MHV_INVALID_IR_INDEX;
 
     // Comparison operator overload to measure if two ChainSettings are equal
     bool operator==(const ChainSettings& other);

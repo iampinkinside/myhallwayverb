@@ -10,9 +10,9 @@
 //==============================================================================
 MHVAudioProcessorEditor::MHVAudioProcessorEditor (MHVAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p),
-    m_inputGainAttachment(p.apvts, paramID::inputGain, m_inputGainDial),
-    m_outputGainAttachment(p.apvts, paramID::outputGain, m_outputGainDial),
-    m_dryWetAttachment(p.apvts, paramID::dryWet, m_dryWetSlider)
+    m_inputGainAttachment(p.apvts, MHV_PID_INPUT_GAIN, m_inputGainDial),
+    m_outputGainAttachment(p.apvts, MHV_PID_OUTPUT_GAIN, m_outputGainDial),
+    m_dryWetAttachment(p.apvts, MHV_PID_DRY_WET, m_dryWetSlider)
 {
     m_inputGainDial.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     m_inputGainDial.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -26,13 +26,13 @@ MHVAudioProcessorEditor::MHVAudioProcessorEditor (MHVAudioProcessor& p)
     m_dryWetSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     addAndMakeVisible(m_dryWetSlider);
 
-    m_inpulseComboBox.addItem(paramValue::near, 1);
-    m_inpulseComboBox.addItem(paramValue::far, 2);
-    m_inpulseComboBox.addItem(paramValue::wherever, 3);
+    m_inpulseComboBox.addItem(MHV_NEAR_STR, 1);
+    m_inpulseComboBox.addItem(MHV_FAR_STR, 2);
+    m_inpulseComboBox.addItem(MHV_WHEREVER_STR, 3);
 
     // Because the ComboBoxAttachment updates the combobox for the first time when it's created
     // we need to create the attachment after the combobox was filled with items
-    m_inpulseComboBoxAttachment = std::make_unique<ComboboxAttachment>(p.apvts, paramID::irIndex, m_inpulseComboBox);
+    m_inpulseComboBoxAttachment = std::make_unique<ComboboxAttachment>(p.apvts, MHV_PID_IR_INDEX, m_inpulseComboBox);
     addAndMakeVisible(m_inpulseComboBox);
 
     // Take care of the labels

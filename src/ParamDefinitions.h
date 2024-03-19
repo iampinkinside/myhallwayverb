@@ -1,30 +1,20 @@
 #pragma once
 
-// This namespace contains the names for the plugin's parameters.
-// Those need to be unique and are used to identify the parameters in the code.
-// They are also used to synchronize the parameters with the GUI.
-namespace paramID
-{
-    const char* const inputGain = "inputGain";  
-    const char* const outputGain = "outputGain";
-    const char* const dryWet = "dryWet";
-    const char* const irIndex = "irIndex";
-}
+#define MHV_PID_INPUT_GAIN "inputGain"
+#define MHV_PID_OUTPUT_GAIN "outputGain"
+#define MHV_PID_DRY_WET "dryWet"
+#define MHV_PID_IR_INDEX "irIndex"
 
-// This namespace contains the values for the plugin's parameters.
-// It is used to avoid hardcoding the values in other places of the code.
-namespace paramValue
-{
-    const char * const near = "Near...";
-    const char * const far = "Far...";
-    const char * const wherever = "Wherever you are?";
-    const float minGain = -24.0f;
-    const float maxGain = 6.0f;
-    const float defaultGain = 0.0f;
-    const float defaultMix = 50.0f;
-    const float stepValue = 0.1f;
-    const float skewFactor = 1.0f;
-    const float minMix = 0.0f;
-    const float maxMix = 100.0f;     
-    const int invalidIRIndex = -1;
-}
+#define MHV_NEAR_STR "Near..."
+#define MHV_FAR_STR "Far..."
+#define MHV_WHEREVER_STR "Wherever you are?"
+
+#define MHV_PV_MIN_GAIN -24.0f
+#define MHV_PV_MAX_GAIN 6.0f
+#define MHV_PV_DEFAULT_GAIN 0.0f
+#define MHV_PV_DEFAULT_MIX 50.0f
+#define MHV_PV_STEP_VALUE 0.1f
+#define MHV_PV_SKEW_FACTOR 1.0f
+#define MHV_PV_MIN_MIX 0.0f
+#define MHV_PV_MAX_MIX 100.0f
+#define MHV_INVALID_IR_INDEX -1
