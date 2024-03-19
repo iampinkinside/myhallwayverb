@@ -218,7 +218,7 @@ void MHVAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
     if(tree.isValid())
     {
         apvts.replaceState(tree);
-        updateParameters();
+        updateParameters(true);
     }
 }
 
@@ -315,6 +315,6 @@ void MHVAudioProcessor::updateCurrentIR(const IRData* const newIRData)
                                                                         juce::dsp::Convolution::Stereo::no,
                                                                         juce::dsp::Convolution::Trim::no,
                                                                         0,
-                                                                        juce::dsp::Convolution::Normalise::no);
+                                                                        juce::dsp::Convolution::Normalise::yes);
     }
 }

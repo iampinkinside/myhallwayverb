@@ -32,7 +32,7 @@ MHVAudioProcessorEditor::MHVAudioProcessorEditor (MHVAudioProcessor& p)
 
     // Because the ComboBoxAttachment updates the combobox for the first time when it's created
     // we need to create the attachment after the combobox was filled with items
-    std::make_unique<ComboboxAttachment>(p.apvts, paramID::irIndex, m_inpulseComboBox);
+    m_inpulseComboBoxAttachment = std::make_unique<ComboboxAttachment>(p.apvts, paramID::irIndex, m_inpulseComboBox);
     addAndMakeVisible(m_inpulseComboBox);
 
     // Take care of the labels
