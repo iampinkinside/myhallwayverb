@@ -5,39 +5,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include "BinaryData.h"
+#include "ParamDefinitions.h"
+#include "HelperStructs.h"
 
 #define PLUGIN_CHANNEL_COUNT 2
-#define INVALID_IR_INDEX -1
-
-// This struct represents the plugin's data tree parameter pointers
-struct ParamPointers
-{
-    std::atomic<float>* inputGain;
-    std::atomic<float>* outputGain;
-    juce::RangedAudioParameter* dryWet;
-    std::atomic<float>* irIndex;
-};
-
-// This struct represents the plugin's settings
-struct ChainSettings
-{
-    float inputGain;
-    float outputGain;
-    float dryWet;
-    int irIndex;
-
-    void updateSettings(ParamPointers& params);
-};
-
-// This struct represents the impulse response data
-struct IRData
-{
-    const void* const data;
-    const size_t size;
-    const unsigned int index;
-
-    IRData(const void* const iRdata, const size_t iRsize, const unsigned int iRindex);
-};
 
 // This is the plugin's main class
 class MHVAudioProcessor final : public juce::AudioProcessor
@@ -45,7 +16,7 @@ class MHVAudioProcessor final : public juce::AudioProcessor
 // Variables
 public:
     // Manages the plugin's parameters and synchronizing them with the GUI
-    juce::AudioProcessorValueTreeState apvts{*this, nullptr, "Parameters", createParameterLayout()};
+    juce::AudioProcessorValueTreeState apvts;
 private:
      // Chain element's position defined as an enum for easier access
     enum ChainPositions { PosInputGain = 0, PosConvolution, PosOutputGain, };
@@ -58,12 +29,13 @@ private:
     std::array<MonoChain, PLUGIN_CHANNEL_COUNT> chainArray; 
     // Dry/Wet mixers
     std::array<DryWetMixer, PLUGIN_CHANNEL_COUNT> mixerArray;
-    // Chain settings
-    ChainSettings m_chainSettings;
-    // The current impulse response index
-    int m_currentIRIndex = INVALID_IR_INDEX;
-    // The plugin's parameters pointers
-    ParamPointers m_paramPointers;
+    // Chain settings, used to store the current old and new settings
+    // When they are intialized, they are all the same and hold the default values
+    ChainSettings m_oldChainSettings;
+    ChainSettings m_currentChainSettings;
+    ChainSettings m_newChainSettings;
+    // The plugin's parameters pointers, its's important to have it declared below the AudioProcessorValueTreeState
+    const ParamPointers m_paramPointers;
     // The array with the impulse response data
     const std::array<const IRData, 3> m_IRDataArray = { IRData(BinaryData::NearIR_wav, BinaryData::NearIR_wavSize, 0 ),
                                                         IRData(BinaryData::FarIR_wav, BinaryData::FarIR_wavSize, 1),
@@ -109,19 +81,18 @@ public:
   // Custom methods    
     // Creates the plugin's parameters layout
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    // Updates the plugin's parameters (update the DSP chain with the new parameters values)
-    void updateParameters();
 private:
+    // Updates the plugin's parameters (update the DSP chain with the new parameters values)
+    // The update will only happen if the new parameters values are different from the current ones
+    void updateParameters(const bool forceUpdate = false);
     // Updates the current impulse response
     void updateCurrentIR(const IRData* newIRData);
     // Internal method used to process the buffer using the plugin's DSP chain
-    void processBufferUsingDSP(juce::AudioBuffer<float>& buffer, unsigned int numChannels);
+    void processBufferUsingDSP(juce::AudioBuffer<float>& buffer, const unsigned int numChannels);
     // Internal method used to apply the plugin's settings to the DSP chain
     void applyChainSettings();
-    // Internal method used to update the impulse response for a single DSP chain
-    void updateChainIR(MonoChain& chain, const IRData* const newIRData);
     // Internal method used to prepare the DSP chains
-    void prepareChains(juce::dsp::ProcessSpec& spec);
+    void prepareChains(const juce::dsp::ProcessSpec& spec);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MHVAudioProcessor)
 };

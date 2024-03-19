@@ -26,4 +26,5 @@ namespace paramValue
     const float skewFactor = 1.0f;
     const float minMix = 0.0f;
     const float maxMix = 100.0f;     
+    const int invalidIRIndex = -1;
 }

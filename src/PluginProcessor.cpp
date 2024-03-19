@@ -1,8 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "BinaryData.h"
-#include "ParamDefinitions.h"
-
 
 MHVAudioProcessor::MHVAudioProcessor()
      : AudioProcessor (BusesProperties()
@@ -12,14 +10,10 @@ MHVAudioProcessor::MHVAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
-
+                       ),
+     apvts(*this, nullptr, "Parameters", createParameterLayout()),
+     m_paramPointers(apvts)
 {
-    // Store the parameter pointers
-    m_paramPointers.inputGain = apvts.getRawParameterValue(paramID::inputGain);
-    m_paramPointers.outputGain = apvts.getRawParameterValue(paramID::outputGain);
-    m_paramPointers.dryWet = apvts.getParameter(paramID::dryWet);
-    m_paramPointers.irIndex = apvts.getRawParameterValue(paramID::irIndex);
 }
 
 MHVAudioProcessor::~MHVAudioProcessor()
@@ -105,7 +99,7 @@ void MHVAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     prepareChains(spec);
 }
 
-void MHVAudioProcessor::prepareChains(juce::dsp::ProcessSpec& spec)
+void MHVAudioProcessor::prepareChains(const juce::dsp::ProcessSpec& spec)
 {
     // Prepare the mono reverb chains
     for (auto& chain : chainArray)
@@ -121,7 +115,7 @@ void MHVAudioProcessor::prepareChains(juce::dsp::ProcessSpec& spec)
     }
 
     // Update the parameters
-    updateParameters();
+    updateParameters(true);
 }
 
 void MHVAudioProcessor::releaseResources()
@@ -259,12 +253,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout MHVAudioProcessor::createPar
     return layout;
 }
 
-void MHVAudioProcessor::updateParameters()
+void MHVAudioProcessor::updateParameters(bool forceUpdate)
 {
     // Get the chain settings
-    m_chainSettings.updateSettings(m_paramPointers);
+    m_newChainSettings.updateSettings(m_paramPointers);
     // Apply the parameters to the chains
-    applyChainSettings();
+    if(forceUpdate || !(m_newChainSettings == m_currentChainSettings))
+    {
+        // Get the chain settings
+        m_currentChainSettings = m_newChainSettings;
+        // Apply the parameters to the chains
+        applyChainSettings();
+        // Store the current settings as the old settings
+        m_oldChainSettings = m_currentChainSettings;
+    }
 }
 
 void MHVAudioProcessor::applyChainSettings()
@@ -272,15 +274,15 @@ void MHVAudioProcessor::applyChainSettings()
     for(unsigned int i = 0; i < chainArray.size(); i++)
     {
         // Apply the input gain parameter
-        chainArray[i].get<ChainPositions::PosInputGain>().setGainDecibels(m_chainSettings.inputGain);
+        chainArray[i].get<ChainPositions::PosInputGain>().setGainDecibels(m_currentChainSettings.inputGain);
         // Apply the output gain parameter
-        chainArray[i].get<ChainPositions::PosOutputGain>().setGainDecibels(m_chainSettings.outputGain);
+        chainArray[i].get<ChainPositions::PosOutputGain>().setGainDecibels(m_currentChainSettings.outputGain);
         // Apply the dry/wet mix parameter
-        mixerArray[i].setWetMixProportion(m_chainSettings.dryWet);
+        mixerArray[i].setWetMixProportion(m_currentChainSettings.dryWet);
         // Update the current impulse response if needed
-        if (m_currentIRIndex == INVALID_IR_INDEX || m_currentIRIndex != m_chainSettings.irIndex)
+        if (m_oldChainSettings.irIndex == paramValue::invalidIRIndex || m_currentChainSettings.irIndex != m_oldChainSettings.irIndex)
         {
-            updateCurrentIR(&m_IRDataArray[(unsigned int)m_chainSettings.irIndex]);
+            updateCurrentIR(&m_IRDataArray[(unsigned int)m_currentChainSettings.irIndex]);
         }
     }
 }
@@ -313,23 +315,6 @@ void MHVAudioProcessor::updateCurrentIR(const IRData* const newIRData)
                                                                         juce::dsp::Convolution::Stereo::no,
                                                                         juce::dsp::Convolution::Trim::no,
                                                                         0,
-                                                                        juce::dsp::Convolution::Normalise::yes);
+                                                                        juce::dsp::Convolution::Normalise::no);
     }
-}
-
-
-IRData::IRData(const void* const iRdata, const size_t iRsize, const unsigned int iRindex)
-    : data(iRdata), size(iRsize), index(iRindex)
-{
-}
-
-void ChainSettings::updateSettings(ParamPointers& params)
-{
-    // Get the input and output gain as raw values as we'll be setting them using decibels
-    inputGain = params.inputGain->load();
-    outputGain = params.outputGain->load();
-    // Get the dry/wet mix as a normalised value as this is what the mixer expects
-    dryWet = params.dryWet->getValue();
-    // Get the impulse response raw value and cast it to an unsigned 
-    irIndex = (int)(params.irIndex->load());
 }

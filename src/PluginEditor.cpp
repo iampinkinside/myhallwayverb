@@ -3,8 +3,8 @@
 #include "ParamDefinitions.h"
 
 // The dimensions of the background image
-const int jpg_width = 263;
-const int jpg_height = 400;
+#define JPG_WIDTH 263
+#define JPG_HEIGHT 400
 
 
 //==============================================================================
@@ -12,8 +12,7 @@ MHVAudioProcessorEditor::MHVAudioProcessorEditor (MHVAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p),
     m_inputGainAttachment(p.apvts, paramID::inputGain, m_inputGainDial),
     m_outputGainAttachment(p.apvts, paramID::outputGain, m_outputGainDial),
-    m_dryWetAttachment(p.apvts, paramID::dryWet, m_dryWetSlider),
-    m_inpulseComboBoxAttachment(p.apvts, paramID::irIndex, m_inpulseComboBox)
+    m_dryWetAttachment(p.apvts, paramID::dryWet, m_dryWetSlider)
 {
     m_inputGainDial.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     m_inputGainDial.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -31,16 +30,13 @@ MHVAudioProcessorEditor::MHVAudioProcessorEditor (MHVAudioProcessor& p)
     m_inpulseComboBox.addItem(paramValue::far, 2);
     m_inpulseComboBox.addItem(paramValue::wherever, 3);
 
-    m_inpulseComboBox.setSelectedId (1);
-
+    // Because the ComboBoxAttachment updates the combobox for the first time when it's created
+    // we need to create the attachment after the combobox was filled with items
+    std::make_unique<ComboboxAttachment>(p.apvts, paramID::irIndex, m_inpulseComboBox);
     addAndMakeVisible(m_inpulseComboBox);
 
-    m_inputGainDial.onValueChange = [this] { processorRef.updateParameters(); };
-    m_outputGainDial.onValueChange = [this] { processorRef.updateParameters(); };
-    m_inpulseComboBox.onChange = [this] { processorRef.updateParameters(); };
-    m_dryWetSlider.onValueChange = [this] { processorRef.updateParameters(); };
-
-    setSize(jpg_width, jpg_height);
+    // Set the size of the editor
+    setSize(JPG_WIDTH, JPG_HEIGHT);
 }
 
 MHVAudioProcessorEditor::~MHVAudioProcessorEditor()

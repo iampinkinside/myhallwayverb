@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "memory"
 
 // This is the plugin's GUI class
 class MHVAudioProcessorEditor final : public juce::AudioProcessorEditor
@@ -29,7 +30,7 @@ private:
     SliderAttachment m_inputGainAttachment;
     SliderAttachment m_outputGainAttachment;
     SliderAttachment m_dryWetAttachment;
-    ComboboxAttachment m_inpulseComboBoxAttachment;
+    std::unique_ptr<ComboboxAttachment> m_inpulseComboBoxAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MHVAudioProcessorEditor)
 };
